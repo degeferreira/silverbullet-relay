@@ -1,0 +1,34 @@
+{
+  "timezone": "UTC",
+  "google_calendar": {
+    "enabled": false,
+    "interval": 300,
+    "directory": "/calendar"
+  },
+  "silverbullet_url": "http://127.0.0.1:3000",
+  "daily_interval": 30,
+  "zotero_interval": 600,
+  "readeck_interval": 300,
+  "vikunja": {
+    "url": "http://127.0.0.1:3456/api/v1",
+    "public_url": "http://127.0.0.1:3456",
+    "inbox_id": 1,
+    "saved_filter_id": 1
+  },
+  "zotero": {
+    "user_id": null
+  },
+  "readeck": {
+    "url": "http://127.0.0.1:8000/api",
+    "trigger_labels": [
+      "silverbullet",
+      "process"
+    ],
+    "processed_label": "silverbullet-imported"
+  },
+  "enabled": {
+    "daily": false,
+    "zotero": false,
+    "readeck": false
+  }
+}

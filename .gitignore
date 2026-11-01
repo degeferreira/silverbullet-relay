@@ -1,0 +1,6 @@
+runtime/
+secrets/
+.env
+__pycache__/
+.venv/
+*.db*
