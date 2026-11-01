@@ -3,8 +3,9 @@ module github.com/degeferreira/silverbullet-relay/go
 go 1.26.0
 
 require (
-	github.com/yuin/goldmark v1.7.8
-	golang.org/x/net v0.37.0
+	github.com/degeferreira/paperwork v0.0.0-20261101200947-87387ee09b98
+	github.com/yuin/goldmark v1.7.13
+	golang.org/x/net v0.62.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.38.2
 )
@@ -21,3 +22,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/degeferreira/paperwork => ../../paperwork

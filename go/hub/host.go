@@ -167,19 +167,7 @@ func (h *Host) registerCore() {
 	for _, path := range []string{"/health/ready", "/v1/status"} {
 		h.route("GET "+path, func(r *http.Request) (any, error) { return h.Status() })
 	}
-	h.route("POST /v1/daily/reconcile", func(r *http.Request) (any, error) {
-		var b struct {
-			Path *string `json:"path"`
-		}
-		if e := decodeBody(r, &b, false); e != nil {
-			return nil, e
-		}
-		if b.Path == nil || len([]rune(*b.Path)) > 200 {
-			return nil, invalid("Invalid daily path")
-		}
-		return s.ReconcileDaily(r.Context(), *b.Path)
-	})
-	h.route("POST /v1/daily/open", func(r *http.Request) (any, error) { return s.OpenDaily(r.Context()) })
+	h.registerPaperworkAliases()
 	h.route("GET /v1/tasks/saved-filter", func(r *http.Request) (any, error) {
 		force := false
 		if raw := r.URL.Query().Get("force"); raw != "" {
@@ -255,20 +243,6 @@ func (h *Host) registerCore() {
 		name := name
 		h.route("GET /v1/"+name, func(r *http.Request) (any, error) { return s.PaginatedVK(r.Context(), "/"+name, nil) })
 	}
-	h.route("GET /v1/zotero/identity", func(r *http.Request) (any, error) {
-		id, e := s.ZoteroUser(r.Context())
-		return Object{"user_id": id}, e
-	})
-	h.route("GET /v1/zotero/search", func(r *http.Request) (any, error) {
-		q := r.URL.Query().Get("q")
-		if len([]rune(q)) > 200 {
-			return nil, invalid("Query too long")
-		}
-		return s.ZoteroSearch(r.Context(), q)
-	})
-	h.route("POST /v1/zotero/items/{key}/import", func(r *http.Request) (any, error) { return s.ImportZotero(r.Context(), r.PathValue("key")) })
-	h.route("GET /v1/zotero/items/{key}/citation", func(r *http.Request) (any, error) { return s.Citation(r.Context(), r.PathValue("key")) })
-	h.route("POST /v1/zotero/items/{key}/cite", func(r *http.Request) (any, error) { return s.CiteZotero(r.Context(), r.PathValue("key")) })
 	h.route("GET /v1/readeck/search", func(r *http.Request) (any, error) {
 		q := r.URL.Query().Get("q")
 		if len([]rune(q)) > 200 {
@@ -294,29 +268,6 @@ func (h *Host) registerCore() {
 		}
 		return s.SaveSecret(r.PathValue("name"), b.Value)
 	})
-	_ = h.RegisterJob(Job{"daily", time.Duration(defaultInt(s.Config["daily_interval"], 30)) * time.Second, func(ctx context.Context) error {
-		if !enabled(s.Config, "daily") {
-			return nil
-		}
-		files, e := s.Files(ctx)
-		if e != nil {
-			return e
-		}
-		for _, path := range files {
-			if DailyPattern.MatchString(path) {
-				if _, e = s.ReconcileDaily(ctx, path); e != nil {
-					return e
-				}
-			}
-		}
-		return nil
-	}})
-	_ = h.RegisterJob(Job{"zotero", time.Duration(defaultInt(s.Config["zotero_interval"], 600)) * time.Second, func(ctx context.Context) error {
-		if !enabled(s.Config, "zotero") {
-			return nil
-		}
-		return s.SyncZotero(ctx)
-	}})
 	_ = h.RegisterJob(Job{"readeck", time.Duration(defaultInt(s.Config["readeck_interval"], 300)) * time.Second, func(ctx context.Context) error {
 		if !enabled(s.Config, "readeck") {
 			return nil
@@ -379,30 +330,6 @@ func (h *Host) Handler() http.Handler {
 		h.Mux.ServeHTTP(w, r)
 	})
 }
-func (s *Service) RunJob(ctx context.Context, name string, fn func(context.Context) error) error {
-	e := fn(ctx)
-	if errors.Is(e, context.Canceled) {
-		return e
-	}
-	if e == nil {
-		return s.State.Set("job:"+name, Object{"last_success": now(), "error": nil})
-	}
-	previous, se := s.State.Get("job:"+name, Object{})
-	if se != nil {
-		return se
-	}
-	message := "Error"
-	var known *Error
-	if errors.As(e, &known) {
-		message = known.Detail
-	} else {
-		message = fmt.Sprintf("%T", e)
-	}
-	if se = s.State.Set("job:"+name, Object{"last_success": obj(previous)["last_success"], "error": message, "last_error": now()}); se != nil {
-		return se
-	}
-	return e
-}
 
 // Worker is opt-in; constructing a host never starts remote jobs.
 func (h *Host) Worker(ctx context.Context) error {
@@ -450,6 +377,36 @@ func (h *Host) Status() (Object, error) {
 		git, e = readObject("/backup-status/status.json")
 		if e != nil {
 			return nil, e
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	address := os.Getenv("PAPERWORK_URL")
+	if address == "" {
+		address = "http://127.0.0.1:8089"
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", address+"/v1/paperwork/status", nil)
+	var status Object
+	if err == nil {
+		res, e := h.Service.Client.Do(req)
+		err = e
+		if e == nil {
+			if res.StatusCode == 200 {
+				err = json.NewDecoder(res.Body).Decode(&status)
+			} else {
+				err = fmt.Errorf("Paperwork status %d", res.StatusCode)
+			}
+			res.Body.Close()
+		}
+	}
+	if err == nil {
+		for name, value := range obj(status["jobs"]) {
+			jobs[name] = value
+		}
+		count = num(status["uncertain_tasks"])
+	} else {
+		for _, name := range []string{"daily", "zotero"} {
+			jobs[name] = Object{"error": "Paperwork unavailable"}
 		}
 	}
 	return Object{"jobs": jobs, "google_calendar": gc, "uncertain_tasks": count, "git": git}, nil

@@ -6,3 +6,8 @@ __pycache__/
 *.db*
 
 node_modules/
+
+*.sqlite*
+.cache/
+private/
+bin/

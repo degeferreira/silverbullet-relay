@@ -1,0 +1,3 @@
+Library/Scripts/*.js linguist-generated=true
+zotero/*.js linguist-generated=true
+zotero/dist/* linguist-generated=true

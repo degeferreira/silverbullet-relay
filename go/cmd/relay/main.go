@@ -41,7 +41,14 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	done := make(chan error, 1)
-	go func() { done <- host.Worker(ctx) }()
+	go func() {
+		if os.Getenv("HUB_DISABLE_WORKERS") == "1" {
+			<-ctx.Done()
+			done <- ctx.Err()
+			return
+		}
+		done <- host.Worker(ctx)
+	}()
 	server := &http.Server{Addr: env("HUB_LISTEN", "127.0.0.1:8088"), Handler: host.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 180 * time.Second, IdleTimeout: 60 * time.Second}
 	serve := make(chan error, 1)
 	go func() { serve <- server.ListenAndServe() }()

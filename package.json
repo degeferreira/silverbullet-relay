@@ -1,6 +1,6 @@
 {
   "name": "silverbullet-relay",
-  "version": "0.1.0",
+  "version": "0.2.0-go",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",

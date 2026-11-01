@@ -225,37 +225,8 @@ function hub.liveSearch(source, onSelect)
   js.window.setTimeout(mounted, 50)
 end
 
-function hub.zoteroSelected(item)
-  local action = editor.filterBox("Referência", {
-    {name = "Citar em APA + link para a nota + Referências", value = "cite"},
-    {name = "Gerar ou atualizar nota de literatura", value = "import"},
-    {name = "Abrir nota existente", value = "open"}
-  })
-  if not action then return end
-  if action.value == "cite" then
-    local page = editor.getCurrentPage()
-    local helpers = js.importFromSpace("Library/Relay/Scripts/Citations.js")
-    local result = hub.call("zotero/items/" .. item.key .. "/cite", "POST")
-    hub.waitLocalPage(result.path)
-    if editor.getCurrentPage() ~= page then error("Você mudou de nota durante a consulta. Selecione a referência novamente.") end
-    -- Check reference markers before making any change to the current note.
-    helpers.addReference(editor.getText(), result.identity, result.reference, result.path)
-    editor.insertAtCursor(helpers.internalCitation(result.path, result.citation))
-    editor.setText(helpers.addReference(editor.getText(), result.identity, result.reference, result.path))
-    editor.save()
-  elseif action.value == "import" then
-    local result = hub.call("zotero/items/" .. item.key .. "/import", "POST")
-    hub.navigate(result.path)
-  elseif item.path then
-    hub.navigate(item.path:gsub("%.md$", ""))
-  else
-    editor.flashNotification("Nenhuma nota criada para este item.", "info")
-  end
-end
-
-function hub.zotero()
-  hub.liveSearch("zotero", hub.zoteroSelected)
-end
+function hub.zoteroSelected(item) return paperwork.zoteroSelected(item) end
+function hub.zotero() return paperwork.zotero() end
 
 function hub.readeckSelected(item)
   local action = editor.filterBox("Bookmark", {
@@ -367,31 +338,8 @@ function hub.taskPopup(kind)
   show()
 end
 
-function hub.daily()
-  if hub.desktopConnection() then
-    local day = js.window.Intl.DateTimeFormat("sv-SE", {timeZone = "America/Sao_Paulo"}).format(js.new(js.window.Date))
-    local page = "Daily/" .. day
-    if not space.pageExists(page) then
-      local ok, err = pcall(space.readPage, page)
-      if not ok then
-        if not tostring(err):lower():find("not found", 1, true) then error("Não foi possível verificar a Daily local; nenhuma nota foi sobrescrita.") end
-        space.writePage(page, "---\ntype: daily\ndate: " .. day .. "\n---\n\n# " .. day ..
-          '\n\n## Diário\n\n')
-      end
-    end
-    editor.navigate(page)
-    return
-  end
-  local result = hub.call("daily/open", "POST")
-  editor.navigate(result.path)
-end
-
-function hub.dailyButton()
-  return widget.htmlBlock(dom.button {__rawText = "Abrir Daily de hoje", onclick = function()
-    local ok, err = pcall(hub.daily)
-    if not ok then editor.flashNotification(tostring(err), "error") end
-  end})
-end
+function hub.daily() return paperwork.daily() end
+function hub.dailyButton() return paperwork.dailyButton() end
 
 function hub.taskProject()
   local line = editor.getCurrentLine()
@@ -406,7 +354,6 @@ function hub.taskProject()
   editor.save()
 end
 
-command.define {name = "Zotero: Buscar biblioteca", run = hub.zotero}
 command.define {name = "Integrações: Conectar Desktop ao servidor", run = hub.configureDesktop}
 command.define {name = "Integrações: Conectar Desktop pela Tailscale", run = hub.configureDesktop}
 command.define {name = "Integrações: Desconectar este computador", run = function()
@@ -414,30 +361,10 @@ command.define {name = "Integrações: Desconectar este computador", run = funct
   editor.flashNotification("Conexão local removida. Revogue também o token no Dashboard do servidor.", "info")
 end}
 command.define {name = "Readeck: Buscar bookmarks", run = hub.readeck}
-command.define {name = "Daily: Abrir hoje", run = hub.daily}
 command.define {name = "Vikunja: Projeto da tarefa atual", run = hub.taskProject}
-function hub.syncDaily()
-  editor.save()
-  local connection = hub.desktopConnection()
-  if connection then
-    local remote = net.proxyFetch(hub.tailnet .. "/.fs/" .. js.window.encodeURI(editor.getCurrentPage() .. ".md"),
-      {headers = {Authorization = "Bearer " .. connection.token}})
-    if remote.status ~= 200 or type(remote.body) ~= "string" then
-      error("A Daily local ainda não chegou ao servidor. Aguarde a sincronização do Desktop.")
-    end
-    local remoteText = remote.body:gsub("\r\n", "\n")
-    local localText = editor.getText():gsub("\r\n", "\n")
-    if remoteText ~= localText then
-      error("A Daily local ainda não chegou ao servidor. Aguarde a sincronização do Desktop; as tarefas serão processadas automaticamente após ela.")
-    end
-  end
-  local result = hub.call("daily/reconcile", "POST", {path = editor.getCurrentPage() .. ".md"})
-  editor.flashNotification(tostring(result.processed) .. " tarefa(s) processada(s).", "info")
-end
-command.define {name = "Vikunja: Sincronizar Daily atual", run = hub.syncDaily}
+function hub.syncDaily() return paperwork.syncDaily() end
 command.define {name = "Vikunja: Todas tarefas", run = function() hub.taskPopup("all") end}
 command.define {name = "Vikunja: Tarefas de hoje", run = function() hub.taskPopup("today") end}
-slashCommand.define {name = "cite", description = "Buscar Zotero e inserir citação APA com nota vinculada", run = hub.zotero}
 slashCommand.define {name = "readeck", description = "Buscar bookmark ou link interno", run = hub.readeck}
 
 ```
