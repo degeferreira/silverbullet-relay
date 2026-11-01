@@ -52,3 +52,24 @@ Instale as dependências do backend em ambiente virtual e execute:
 ```sh
 PYTHONPATH=backend python -m unittest discover -s tests -q
 ```
+
+## Desenvolvimento TypeScript
+
+Os módulos de navegador têm fonte em `src/Library/Scripts/*.ts`, com verificação
+`strict`. O build mantém os caminhos `Library/Scripts/*.js` usados pelo Space Lua
+ e pelo empacotador. Esses arquivos JavaScript gerados permanecem no repositório
+para instalação sem Node.js; edite a fonte TypeScript e reconstrua antes de empacotar.
+Space Lua permanece nas páginas da Library.
+
+```sh
+npm ci
+npm run check
+npm run build
+```
+
+O compilador é fixado no `package-lock.json`. O build não instala bibliotecas nem
+altera serviços em execução. Os testes existentes consomem o JavaScript gerado.
+
+### Estado da implementação Go/TypeScript
+
+Fontes Go e TypeScript em desenvolvimento; a presença destes fontes não constitui uma release pronta para substituir o serviço Python. A transferência exclusiva de Daily/Zotero, os consumidores do estado migrado e a instalação limpa ainda precisam ser concluídos antes do corte de produção. Os bancos e credenciais de produção não fazem parte deste repositório.

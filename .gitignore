@@ -4,3 +4,5 @@ secrets/
 __pycache__/
 .venv/
 *.db*
+
+node_modules/
